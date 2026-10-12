@@ -1165,6 +1165,7 @@ function closeSettings(){$("ssheet").classList.remove("open");$("gear").focus()}
 $("gear").onclick=openSettings;$("sx").onclick=closeSettings;
 try{const v=parseInt(localStorage.getItem("videotheque_view"),10);if(v>=0&&v<3)state.view=v;const t=localStorage.getItem("videotheque_theme");if(t==="light"||t==="dark")theme=t}catch(e){}
 applyTheme();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js");
 build();render();initData();
 </script>
 </body>
