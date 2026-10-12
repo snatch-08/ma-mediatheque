@@ -1,1 +1,8 @@
-
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.snatch_08.twa",
+        "sha256_cert_fingerprints": ["26:DE:E4:36:98:4B:7B:E3:DE:D4:52:83:71:06:51:20:68:5D:42:7B:F8:73:84:19:55:EF:2D:5C:DF:A0:85:FB"]
+      }
+    }]
