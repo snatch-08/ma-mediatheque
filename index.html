@@ -292,6 +292,9 @@ main{display:block;padding:8px 18px 96px;text-align:left;align-items:initial;jus
       <div class="wrap" id="s_theme"></div>
       <div class="lab">Style des affiches générées</div>
       <div class="wrap" id="s_style"></div>
+      <div class="lab">Catégories</div>
+      <div id="s_cats"></div>
+      <div class="hint" id="s_catst">Supprimer une catégorie efface aussi tous ses éléments. Tu pourras la recréer avec « + Autre » dans le formulaire d'ajout.</div>
       <div class="lab">Clé TMDB (infos films, séries et affiches)</div>
       <input type="password" id="s_tkey" autocomplete="off" spellcheck="false" placeholder="Colle ta clé TMDB ici" aria-label="Clé TMDB" style="width:100%;box-sizing:border-box;height:46px;border-radius:12px;border:1.5px solid transparent;background:var(--chip);color:var(--ink);font:inherit;font-size:16px;padding:0 12px;outline:0">
       <div class="acts" style="margin-top:10px"><button type="button" class="pill set" id="s_tsave">Enregistrer la clé</button><button type="button" class="pill" id="s_tdel">Retirer la clé</button></div>
@@ -713,10 +716,14 @@ async function bulkExt(){
 }
 const norm=t=>t.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
 const DEFAULT_MEDIA=["Film","Série","Manga","BD","Musique","Jeu vidéo"];
+const HKEY="videotheque_hmedia";
+let hiddenMedia=[];try{const h=JSON.parse(localStorage.getItem(HKEY)||"[]");if(Array.isArray(h))hiddenMedia=h}catch(e){}
+const isHidden=m=>hiddenMedia.some(h=>norm(h)===norm(m));
+const saveHidden=()=>{try{localStorage.setItem(HKEY,JSON.stringify(hiddenMedia))}catch(e){}};
 let mediaList=DEFAULT_MEDIA.slice();
 function setMediaList(list){
-  const out=DEFAULT_MEDIA.slice();
-  (Array.isArray(list)?list:[]).forEach(m=>{m=String(m||"").trim().slice(0,30);if(m&&!out.some(x=>norm(x)===norm(m)))out.push(m)});
+  const out=DEFAULT_MEDIA.filter(m=>!isHidden(m));
+  (Array.isArray(list)?list:[]).forEach(m=>{m=String(m||"").trim().slice(0,30);if(m&&!isHidden(m)&&!out.some(x=>norm(x)===norm(m)))out.push(m)});
   mediaList=out;meta.media.opts=["Tout",...out];
   if(state.media>=meta.media.opts.length)state.media=0;
 }
@@ -736,7 +743,7 @@ const NORATE=["Manga","BD","Musique","Jeu vidéo"];
 const dirLabel=m=>m==="Musique"?"Artiste":m==="Jeu vidéo"?"Studio":(m==="Manga"||m==="BD")?"Auteur":"Réalisateur";
 const grpField=m=>m==="Musique"?"d":(m==="BD"||m==="Manga")?"sr":null;
 const nounText=(n,m)=>n+" "+(NOUNS[m]||["élément","éléments"])[n>1?1:0];
-const curMedia=()=>state.media>0?meta.media.opts[state.media]:"Film";
+const curMedia=()=>state.media>0?meta.media.opts[state.media]:(mediaList[0]||"Film");
 const slug=t=>norm(t).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,120)||"film";
 
 const idFor=(t,m)=>(!m||m==="Film")?slug(t):slug(m)+"--"+slug(t);
@@ -1209,6 +1216,7 @@ async function addMedia(name){
   name=String(name||"").trim().replace(/\s+/g," ").slice(0,30);
   if(!name)return null;
   const ex=mediaList.find(m=>norm(m)===norm(name));if(ex)return ex;
+  if(isHidden(name)){hiddenMedia=hiddenMedia.filter(h=>norm(h)!==norm(name));saveHidden()}
   setMediaList([...mediaList,name]);
   try{await backend.saveMedia(mediaList)}catch(_){}
   render();return name;
@@ -1219,7 +1227,7 @@ function mediaChips(boxId,cur,onPick){
   const o=document.createElement("button");o.type="button";o.className="pill";o.textContent="+ Autre";
   o.onclick=()=>{
     box.replaceChildren();
-    const inp=document.createElement("input");inp.type="text";inp.maxLength=30;inp.placeholder="Nom du média (ex. Jeu vidéo)";inp.setAttribute("aria-label","Nom du nouveau média");
+    const inp=document.createElement("input");inp.type="text";inp.maxLength=30;inp.placeholder="Nom du média (ex. Jouet)";inp.setAttribute("aria-label","Nom du nouveau média");
     inp.style.cssText="width:auto;flex:1;min-width:150px;height:40px;border-radius:999px;border:1.5px solid var(--gold);background:var(--chip);color:var(--ink);font:inherit;font-size:15px;padding:0 14px;outline:0";
     const go=async()=>{const n=await addMedia(inp.value);if(n)onPick(n);else mediaChips(boxId,cur,onPick)};
     const ok=document.createElement("button");ok.type="button";ok.className="pill set";ok.textContent="Ajouter";ok.onclick=go;
@@ -1368,6 +1376,37 @@ function choice(boxId,labels,cur,onPick){
   const box=$(boxId);box.replaceChildren();
   labels.forEach((l,i)=>{const b=document.createElement("button");b.type="button";b.className="pill"+(i===cur?" set":"");b.textContent=l;b.setAttribute("aria-pressed",String(i===cur));b.onclick=()=>onPick(i);box.appendChild(b)});
 }
+
+let catArm=null,catTm=null;
+function drawCats(){
+  const box=$("s_cats");if(!box)return;box.replaceChildren();
+  mediaList.forEach(m=>{
+    const n=films.filter(f=>(f.m||"Film")===m).length;
+    const row=document.createElement("div");row.style.cssText="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)";
+    const nm=document.createElement("div");nm.style.cssText="flex:1;min-width:0;overflow-wrap:anywhere";nm.textContent=m;
+    const ct=document.createElement("small");ct.style.color="var(--muted)";ct.textContent=n+" élément"+(n>1?"s":"");
+    const b=document.createElement("button");b.type="button";b.className="pill danger";b.textContent=catArm===m?"Confirmer ?":"Supprimer";
+    b.setAttribute("aria-label","Supprimer la catégorie "+m);
+    if(mediaList.length<=1){b.disabled=true;b.title="Il faut garder au moins une catégorie"}
+    b.onclick=async()=>{
+      if(catArm!==m){catArm=m;clearTimeout(catTm);catTm=setTimeout(()=>{catArm=null;drawCats()},4000);drawCats();
+        $("s_catst").textContent=n?"Supprimer « "+m+" » effacera aussi ses "+n+" élément"+(n>1?"s":"")+". Appuie à nouveau sur Confirmer.":"Appuie à nouveau sur Confirmer pour supprimer « "+m+" ».";return}
+      clearTimeout(catTm);catArm=null;await deleteMedia(m);
+    };
+    row.append(nm,ct,b);box.appendChild(row);
+  });
+}
+async function deleteMedia(name){
+  if(mediaList.length<=1){toast("Il faut garder au moins une catégorie.");return}
+  const items=films.filter(f=>(f.m||"Film")===name);
+  try{await Promise.all(items.map(f=>backend.del(f.id)))}catch(_){toast("La suppression a échoué. Réessaie.");drawCats();return}
+  if(DEFAULT_MEDIA.some(d=>norm(d)===norm(name))&&!isHidden(name)){hiddenMedia.push(name);saveHidden()}
+  setMediaList(mediaList.filter(m=>norm(m)!==norm(name)));
+  try{await backend.saveMedia(mediaList)}catch(_){}
+  state.media=0;state.grpName="";state.grpMedia="";
+  render();drawCats();$("s_catst").textContent="";
+  toast("Catégorie « "+name+" » supprimée"+(items.length?" avec "+items.length+" élément"+(items.length>1?"s":""):""));
+}
 function drawSettings(){
   choice("s_view",["Affiches","Liste","Carrés"],state.view,i=>{state.view=i;keep("videotheque_view",i);render();drawSettings()});
   choice("s_theme",["Sombre","Clair"],theme==="light"?1:0,i=>{theme=i?"light":"dark";keep("videotheque_theme",theme);applyTheme();drawSettings()});
@@ -1390,7 +1429,7 @@ $("s_tsave").onclick=async()=>{
 };
 $("s_tdel").onclick=()=>{try{localStorage.removeItem(TMDBKEY)}catch(e){}drawTkey();render();toast("Clé TMDB retirée")};
 $("s_tbulk").onclick=bulkTmdb;$("s_ebulk").onclick=bulkExt;
-function openSettings(){drawSettings();drawTkey();$("ssheet").classList.add("open");$("sx").focus()}
+function openSettings(){drawSettings();drawCats();drawTkey();$("ssheet").classList.add("open");$("sx").focus()}
 function closeSettings(){$("ssheet").classList.remove("open");$("gear").focus()}
 $("gear").onclick=openSettings;$("sx").onclick=closeSettings;
 try{const v=parseInt(localStorage.getItem("videotheque_view"),10);if(v>=0&&v<3)state.view=v;const t=localStorage.getItem("videotheque_theme");if(t==="light"||t==="dark")theme=t}catch(e){}
